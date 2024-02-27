@@ -6,10 +6,17 @@ GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m' # 恢复默认颜色
 
-# 第一步：检查系统版本、当前目录容量以及环境依赖是否正确
-echo "${YELLOW}检查系统版本和当前目录容量...${NC}"
-uname -a
-df -h .
+# 第一步：检查系统版本及当前目录容量
+current_dir=$(pwd)
+dir_size=$(df -h . | awk 'NR==2 {print $4}')
+
+echo "当前目录容量为: $dir_size"
+
+# 检查目录容量是否足够
+if [ ${dir_size%G} -lt 30 ]; then
+    echo -e "${RED}容量不足请清理后再运行${NC}"
+    exit 1
+fi
 
 # 检查环境依赖并安装
 echo "${YELLOW}检查环境依赖...${NC}"
