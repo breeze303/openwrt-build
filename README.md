@@ -5,4 +5,11 @@
 3. Immortalwrt
 4. IPQ60xx
 
+使用方法：
+下载到本地然后输入
+```bash
+sh build.sh
+```
+运行即可
+
 本代码由ChatGPT生成
