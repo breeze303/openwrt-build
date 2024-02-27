@@ -1,25 +1,21 @@
 #!/bin/bash
 
-# 设置颜色变量
-YELLOW='\033[1;33m'
-GREEN='\033[0;32m'
+# 定义颜色
 RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
 NC='\033[0m' # 恢复默认颜色
 
-# 第一步：检查系统版本及当前目录容量
+# 第一步：检查系统版本当前目录容量
 current_dir=$(pwd)
-dir_size=$(df -h . | awk 'NR==2 {print $4}')
-
-echo "当前目录容量为: $dir_size"
-
-# 检查目录容量是否足够
-if [ ${dir_size%G} -lt 30 ]; then
-    echo -e "${RED}容量不足请清理后再运行${NC}"
+available_space=$(df -h "$current_dir" | awk 'NR==2 {print $4}')
+required_space="30G"
+if [ "$available_space" \< "$required_space" ]; then
+    echo "${RED}容量不足，请清理后再运行${NC}"
     exit 1
 fi
 
-# 检查环境依赖并安装
-echo "${YELLOW}检查环境依赖...${NC}"
+# 第一步：升级系统
 sudo apt update -y
 sudo apt full-upgrade -y
 sudo apt install -y ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
@@ -29,23 +25,49 @@ libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libreadline-dev libssl-d
 mkisofs msmtp nano ninja-build p7zip p7zip-full patch pkgconf python2.7 python3 python3-pip libpython3-dev qemu-utils \
 rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev
 
-# 检查环境依赖是否安装成功
-if [ $? -ne 0 ]; then
-    echo -e "${RED}环境依赖错误，请自行修复${NC}"
-    exit 1
+# 第二步：检查当前目录是否存在名为open-build的文件夹
+if [ -d "open-build" ]; then
+    echo "${YELLOW}----------------${NC}"
+    echo "${GREEN}该文件夹已存在${NC}"
+    echo "${YELLOW}----------------${NC}"
+else
+    mkdir "open-build"
+    echo "${YELLOW}----------------${NC}"
+    echo "${GREEN}已新建文件夹${NC}"
+    echo "${YELLOW}----------------${NC}"
 fi
 
-# 第二步：提供四个选项，选项名称用黄色，下载地址用绿色
-echo "${GREEN}---------------------------${NC}"
-echo "${YELLOW}请选择要下载的 Git 仓库：${NC}"
-echo "${GREEN}1. openwrt${NC}"
-echo "${GREEN}2. LEDE${NC}"
-echo "${GREEN}3. immortalwrt${NC}"
-echo "${GREEN}4. IPQ60XX库${NC}"
-echo "${GREEN}---------------------------${NC}"
-read -p "请输入选择（1、2、3、4）：" choice
-# 根据选择设置对应的下载地址
-case $choice in
+# 第三步：检查当前目录是否存在目标文件夹
+existing_dirs=""
+for dir in openwrt lede immortalwrt ipq60xx-6.1; do
+    if [ -d "$dir" ]; then
+        existing_dirs="$existing_dirs $dir"
+    fi
+done
+
+if [ -n "$existing_dirs" ]; then
+    echo "${YELLOW}------------------${NC}"
+    echo "${YELLOW}已存在的文件夹: $existing_dirs${NC}"
+    echo "${YELLOW}------------------${NC}"
+    read -p "请输入想要进入的文件夹？(回车则跳过)" choice
+    if [ -d "$choice" ]; then
+        cd "$choice" || exit 1
+        git pull
+    fi
+fi
+
+# 第四步：下载选项
+if [ -z "$choice" ]; then
+    echo "${GREEN}********************************${NC}"
+    echo "${YELLOW}请选择下载选项:${NC}"
+    echo "${YELLOW}1. openwrt${NC}"
+    echo "${YELLOW}2. LEDE${NC}"
+    echo "${YELLOW}3. immortalwrt${NC}"
+    echo "${YELLOW}4. IPQ60XX库${NC}"
+    echo "${GREEN}********************************${NC}"
+    read -p "请输入选择（1、2、3、4）:" choice
+
+    case $choice in
     1)
         REPO_URL="https://github.com/openwrt/openwrt.git"
         ;;
@@ -59,52 +81,61 @@ case $choice in
         REPO_URL="https://github.com/breeze303/ipq60xx-6.1.git"
         ;;
     *)
-        echo -e "${RED}错误：无效的选择${NC}"
+        echo "${RED}错误：无效的选择${NC}"
         exit 1
         ;;
-esac
+    esac
 
-# 输入分支名称
-read -p "请输入分支名称（回车则用默认分支）：" branch
+        # 输入分支名称
+        read -p "请输入分支名称（回车则使用默认分支）：" branch
 
-# 下载指定的 Git 仓库
-echo "开始下载 Git 仓库..."
-if [ -n "$branch" ]; then
-    git clone -b "$branch" "$REPO_URL"
-else
-    git clone "$REPO_URL"
+        # 下载指定的 Git 仓库
+        echo "${YELLOW}----------------${NC}"
+        echo "${GREEN}开始下载源码...${NC}"
+        echo "${YELLOW}----------------${NC}"
+    if [ -n "$branch" ]; then
+        git clone -b "$branch" "$REPO_URL"
+    else
+        git clone "$REPO_URL"
+    fi
+
+    if [ $? -ne 0 ]; then
+        echo "${RED}下载失败${NC}"
+        exit 1
+    fi
+    echo "${GREEN}下载成功${NC}"
 fi
 
-if [ $? -ne 0 ]; then
-    echo "${RED}下载失败${NC}"
-    exit 1
-fi
-echo "${GREEN}下载成功${NC}"
+    # 第五步：更新 feeds
+    REPO_NAME=$(basename "$REPO_URL" .git)
+    cd "$REPO_NAME" || exit 1
+    if 
+        ./scripts/feeds update -a && ./scripts/feeds install -a; then
+        echo "${YELLOW}----------------${NC}"
+        echo "${GREEN}feeds更新成功${NC}"
+        echo "${YELLOW}----------------${NC}"
+    else
+        echo "${YELLOW}----------------${NC}"
+        echo "${RED}feeds更新失败${NC}"
+        echo "${YELLOW}----------------${NC}"
+        exit 1
+    fi
 
-# 进入下载的目录
-REPO_NAME=$(basename "$REPO_URL" .git)
-cd "$REPO_NAME" || exit 1
+# 第六步：选择配置文件
+echo "${YELLOW}请选择:${NC}"
+echo "${YELLOW}1. 导入本地配置文件${NC}"
+echo "${YELLOW}2. 导入其他路径配置文件${NC}"
+echo "${YELLOW}3. 新建配置文件${NC}"
+echo "${YELLOW}按回车键跳过${NC}"
+read -p "输入选项编号: " option
 
-# 第四步：执行 ./scripts/feeds update -a && ./scripts/feeds install -a
-echo "开始更新和安装 feeds..."
-./scripts/feeds update -a && ./scripts/feeds install -a
-if [ $? -ne 0 ]; then
-    echo -e "${RED}更新和安装 feeds 失败${NC}"
-    exit 1
-fi
-echo -e "${GREEN}更新和安装 feeds 成功${NC}"
-
-# 第五步：给两个选项选择
-echo "${GREEN}---------------------------${NC}"
-echo "${YELLOW}请选择："
-echo "${GREEN}1. 导入已有配置文件"
-echo "${GREEN}2. 新建配置文件"
-echo "${GREEN}---------------------------${NC}"
-read -p "请输入选择（1 或 2）：" choice
-
-case $choice in
+case $option in
     1)
-        # 选项一：导入已有配置文件并执行 make defconfig
+        make defconfig
+        ;;
+
+    2)
+        #导入已有配置文件并执行 make defconfig
         read -p "请输入已有配置文件的路径：" config_path
         cp "$config_path" .config
         make defconfig
@@ -114,45 +145,39 @@ case $choice in
             exit 1
         fi
         ;;
-    2)
-        # 选项二：新建配置文件并执行 make menuconfig
+    3)
         make menuconfig
-
-        if [ $? -ne 0 ]; then
-            echo -e "${RED}新建配置文件并执行 make menuconfig 失败${NC}"
-            exit 1
-        fi
         ;;
+
     *)
-        echo -e "${RED}错误：无效的选择${NC}"
-        exit 1
+        echo "${YELLOW}跳过配置文件步骤${NC}"
         ;;
 esac
 
-# 第六步：执行 make download -j8 命令并输出结果
-attempt=1
-max_attempts=3
-
-while [ $attempt -le $max_attempts ]; do
-    echo "第 $attempt 次尝试下载..."
-    make download -j8
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}下载成功${NC}"
+# 第七步：下载
+echo "${YELLOW}----------------${NC}"
+echo "${GREEN}下载DL库中...${NC}"
+echo "${YELLOW}----------------${NC}"
+for i in {1..3}; do
+    if make download -j8; then
+        echo "${GREEN}下载成功${NC}"
         break
+    else
+        echo "${RED}第 $i 次下载失败${NC}"
+        if [ $i -eq 3 ]; then
+            echo "${RED}下载失败，请检查网络连接${NC}"
+            exit 1
+        fi
     fi
-    attempt=$((attempt + 1))
 done
 
-if [ $attempt -gt $max_attempts ]; then
-    echo -e "${RED}下载失败，已重试 $max_attempts 次${NC}"
+# 第八步：编译
+echo "${YELLOW}----------------${NC}"
+echo "${GREEN}开始编译...${NC}"
+echo "${YELLOW}----------------${NC}"
+if make V=s -j$(nproc); then
+    echo "${GREEN}固件编译成功${NC}"
+else
+    echo "${RED}固件编译失败，请检查错误${NC}"
     exit 1
 fi
-
-# 第七步：执行 make V=s -j$(nproc)
-echo "开始编译固件..."
-make V=s -j$(nproc)
-
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}固件编译成功${NC}"
-else
-    echo -
