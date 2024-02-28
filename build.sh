@@ -26,6 +26,10 @@ mkisofs msmtp nano ninja-build p7zip p7zip-full patch pkgconf python2.7 python3 
 rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev
 
 # 第二步：检查当前目录是否存在名为open-build的文件夹
+echo "${YELLOW}~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~${NC}"
+echo "${YELLOW}欢迎使用Openwrt懒人编译脚本${NC}"
+echo "${YELLOW}Github地址：https://github.com/breeze303/openwrt-build${NC}"
+echo "${YELLOW}~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~${NC}"
 if [ -d "open-build" ]; then
     echo "${YELLOW}----------------${NC}"
     echo "${GREEN}该文件夹已存在${NC}"
